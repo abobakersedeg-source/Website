@@ -1,0 +1,51 @@
+{
+  "Common": {
+    "appName": "Golf Cart Store",
+    "loading": "Loading…",
+    "skipToContent": "Skip to main content"
+  },
+  "LocaleSwitcher": {
+    "label": "Change language",
+    "localeEn": "English",
+    "localeAr": "العربية"
+  },
+  "Header": {
+    "navLabel": "Main navigation",
+    "home": "Home",
+    "products": "Products",
+    "services": "Services",
+    "contact": "Contact",
+    "menuOpen": "Menu",
+    "menuClose": "Close menu",
+    "comingSoon": "Coming in a later phase"
+  },
+  "Footer": {
+    "navLabel": "Footer navigation",
+    "home": "Home",
+    "products": "Products",
+    "services": "Services",
+    "contact": "Contact",
+    "brandNote": "Temporary brand placeholder — final identity pending business confirmation (BIZ-01).",
+    "contactLabel": "Contact",
+    "contactPlaceholder": "Contact details will appear here once confirmed. Currently: not yet published.",
+    "privacyPending": "Privacy policy: pending",
+    "termsPending": "Terms & conditions: pending"
+  },
+  "Home": {
+    "meta": {
+      "title": "Golf Cart Store — Home",
+      "description": "GCC golf cart storefront, quotations, and service. Foundation shell (Phase 02)."
+    },
+    "title": "Golf Cart Store — i18n & RTL Shell Ready",
+    "subtitle": "Phase 02 shell is running: bilingual header/footer, Arabic typography, bidi-safe references. Catalogue and checkout arrive in later phases.",
+    "statusLabel": "Build status",
+    "statusValuePrefix": "phase",
+    "statusValue": "Phase 02: i18n & RTL shell ✅",
+    "bidiDemoTitle": "Bidirectional isolation demo",
+    "bidiDemoSku": "Model:",
+    "bidiDemoOrder": "Order ref:",
+    "bidiDemoEmail": "Email:",
+    "bidiDemoPhone": "Phone (placeholder format):",
+    "bidiDemoNote": "Reference values keep LTR order inside Arabic text via <bdi dir=\"ltr\"> + unicode-bidi: isolate. Phone shown is an example format, not a real contact."
+  }
+}

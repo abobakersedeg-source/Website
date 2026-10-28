@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* Font variables are provided by next/font (src/lib/fonts.ts) on <html>;
+     body font-family is set per locale via inline style in [locale]/layout. */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Arabic typography tuning: slightly more line-height for diacritic space,
+   and tabular numerals default to Latin digits (BIZ-13 may switch to
+   Arabic-Indic later — single place to change). */
+html[lang="ar"] {
+  line-height: 1.7;
+  font-feature-settings: "cv05", "ss02";
+}
+
+/* Visible focus indicator everywhere as a baseline (components refine it). */
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
