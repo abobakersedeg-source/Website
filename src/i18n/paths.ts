@@ -69,7 +69,7 @@ function pickSearchParams(search: string, allow: string[]): string {
   const out = new URLSearchParams();
   for (const key of allow) {
     const v = src.get(key);
-    if (v !== null) out.set(key, v);
+    if (v !== null && v !== "") out.set(key, v); // skip empty values entirely
   }
   const qs = out.toString();
   return qs ? `?${qs}` : "";

@@ -14,6 +14,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      // next/font is a build-time transform that only works inside the Next
+      // pipeline; in unit tests we stub it (ADR-016). Document structure
+      // (lang/dir/landmarks) is still exercised against the REAL layout.
+      "next/font/google": path.resolve(__dirname, "tests/__mocks__/next-font.ts"),
     },
   },
 });
