@@ -8,8 +8,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Font variables are provided by next/font (src/lib/fonts.ts) on <html>;
+     body font-family is set per locale via inline style in [locale]/layout. */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +22,18 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Arabic typography tuning: slightly more line-height for diacritic space,
+   and tabular numerals default to Latin digits (BIZ-13 may switch to
+   Arabic-Indic later — single place to change). */
+html[lang="ar"] {
+  line-height: 1.7;
+  font-feature-settings: "cv05", "ss02";
+}
+
+/* Visible focus indicator everywhere as a baseline (components refine it). */
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }

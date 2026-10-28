@@ -32,6 +32,10 @@ const envSchema = z.object({
   // Auth.js (Phase 04).
   AUTH_SECRET: z.string().min(32).optional(),
 
+  // CFG-06 — public site base URL. Enables canonical/hreflang when set;
+  // intentionally has NO default so we never invent a production domain.
+  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
+
   // Observability (CFG-08).
   NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
 });
