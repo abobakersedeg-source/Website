@@ -24,6 +24,7 @@ Format: each ADR = Context → Decision → Alternatives → Consequences. Statu
 **Decision:** Use Prisma with the current **stable** client line (7.x); schema authored per DATA_MODEL.md; real migrations (no `db push`) committed once a DB exists. Re-evaluate Prisma 8 GA in a dedicated upgrade task.
 **Alternatives:** Drizzle (lighter SQL-first; acceptable fallback if Prisma friction appears — revisitable before Phase 04), Kysely + raw SQL (too much boilerplate for CRUD-heavy admin).
 **Consequences:** Excellent DX/type safety; vendor coupling to Prisma CLI; RC-version trap avoided by pinning.
+**Amendment (Phase 01, 2026-10-28):** Prisma 7 stable removes `url = env(...)` from the schema `datasource` block — connection URLs now live in `prisma.config.ts` (CLI/migrations) and a driver adapter (`@prisma/adapter-pg`, installed) at runtime. Schema keeps `provider = "postgresql"` only. This is implemented and validated; no change to the tool choice itself.
 
 ## ADR-004 — Tailwind CSS v4 with RTL-first logical utilities
 **Status:** Accepted

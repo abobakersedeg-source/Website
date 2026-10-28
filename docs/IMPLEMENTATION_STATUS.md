@@ -9,8 +9,8 @@
 | Phase | Description | Status | Notes |
 |---|---|---|---|
 | 00 | Discovery & Architecture docs | ✅ **Complete** | This document set (5 files in `docs/`) |
-| 01 | Foundation scaffold (Next.js+TS+Tailwind, ESLint, CI, Prisma init, .env.example) | ⏳ **NEXT — ready to start** | No blockers for scaffolding itself; DB connection deferred within phase |
-| 02 | i18n & RTL shell | ⬜ Not started | Depends on Phase 01 |
+| 01 | Foundation scaffold (Next.js+TS+Tailwind, ESLint, CI, Prisma init, .env.example) | ✅ **Complete** (2026-10-28) | Build/lint/typecheck green; `/en`+`/ar` prerendered; health probe verified live |
+| 02 | i18n & RTL shell | ⏳ **NEXT — ready to start** | Depends on Phase 01 (done) |
 | 03 | Core data model + migrations + seed | ⬜ Not started | Migration *execution* blocked by CFG-01 (Postgres URL) |
 | 04 | Auth & users | ⬜ Not started | Needs CFG-01; email verification needs CFG-04 |
 | 05 | Catalog storefront | ⬜ Not started | Real content needs BIZ-01/BIZ-02 (sample seeds only meanwhile) |
@@ -85,21 +85,27 @@ Legend: ✅ complete · ⏳ queued/current · ⬜ not started · 🚧 blocked
 2. **No payment credentials (CFG-02/03).** Workaround: COD + bank-transfer adapters make checkout demonstrable end-to-end without any gateway.
 3. **Unknown catalogue/prices (BIZ-02).** Workaround: seed marked `isSample=true`; production seed import task scheduled when data arrives.
 
-## 6. Next Implementation Step — Phase 01 (precise definition)
+## 6. Next Implementation Step — Phase 02: i18n & RTL shell
 
-**Execute immediately upon go-ahead:**
-1. Scaffold Next.js 16 (App Router, TypeScript strict) + Tailwind + ESLint into `/workspace` root (preserving `main` and `docs/`; using `create-next-app` non-interactively via npm).
-2. Establish folder skeleton per ARCHITECTURE §2 (`src/core`, `src/app/[locale]`, `messages/`, `prisma/`).
-3. Add Zod-validated `src/lib/env.ts` + `.env.example` (variable names only — mirrors CFG list above).
-4. Initialize Prisma (`prisma init`) with postgresql provider; do **not** run migrations until DATABASE_URL exists.
-5. Configure scripts: `dev/build/lint/typecheck/format`; add GitHub Actions CI running lint+typecheck+build.
-6. Placeholder `/[locale]` layout + health route so Phase 01 has a runnable demo page.
-7. Commit with message `Phase 01: foundation scaffold`.
+Phase 01 acceptance met (see Change Log). **Execute next:**
+1. Arabic-capable font stack (`next/font` — e.g. IBM Plex Sans Arabic or Cairo + Latin pairing) wired into `[locale]/layout.tsx`.
+2. Tailwind logical-property conventions enforced: ESLint no-restricted-syntax rule banning physical `ml-/mr-/pl-/pr-/left-/right-/text-left/text-right` utilities in class strings.
+3. Bidi isolation utility component for model codes/SKUs/prices inside Arabic text (`<bdi>` wrapper + `Intl.NumberFormat` per locale region).
+4. Shared shell components: header/footer slots, skip-link, `hreflang` alternates via `generateMetadata` alternates API.
+5. Lighthouse sanity check on `/en` and `/ar`; commit `Phase 02: i18n & RTL shell`.
 
-**Acceptance criteria for Phase 01:** `npm run build` green; CI green; no secrets committed; `main` file untouched; README quick-start instructions accurate.
+**Acceptance criteria for Phase 02:** lint fails on physical-direction utilities; `/ar` renders fully mirrored with correct Arabic typography; hreflang pairs present in HTML head; number/currency formatting differs correctly per locale.
+
+### Phase 01 completion notes (2026-10-28)
+- Scaffolded Next **16.4.3** (initial Next 14 attempt discarded after `npm audit` showed 1 critical + 4 high advisories; latest = 0 vulnerabilities). React 19.3.0, TS strict, Tailwind v4, ESLint 9 flat config.
+- Live environment discoveries, now codified: **(a)** Prisma 7 stable forbids `url = env(...)` in schema — connections live in `prisma.config.ts` (datasource.url from DATABASE_URL) + `@prisma/adapter-pg` at runtime → ADR-003 amended accordingly. **(b)** Next 16 deprecates the `middleware` file convention — locale negotiation moved to `src/proxy.ts`. **(c)** Turbopack cannot resolve template-literal dynamic imports of message catalogues — replaced with a static import map in `src/i18n/request.ts`. **(d)** `@theme inline` CSS requires the `@tailwindcss/postcss` plugin declared in `postcss.config.mjs` (scaffold omitted it).
+- Verified results: `prisma validate` ✔ · `prisma generate` ✔ (client → `src/generated/prisma`, gitignored & eslint-ignored) · `npm run lint` ✔ 0 problems · `tsc --noEmit` ✔ · `npm run build` ✔ (`/en`, `/ar` SSG; `/api/health` dynamic) · runtime smoke: `/`→307 `/en`; `<html lang="en" dir="ltr">` / `<html lang="ar" dir="rtl">`; Arabic copy renders; `Accept-Language: ar-AE` negotiates `/ar`; health JSON OK.
+- CI workflow `.github/workflows/ci.yml`: npm ci → prisma generate/validate → lint → typecheck → build (no DB required).
+- No migrations executed (correctly awaiting CFG-01); no secrets committed (`.env.example` names only); `main` untouched.
 
 ## 7. Change Log
 
 | Date | Change | By |
 |---|---|---|
 | 2026-10-28 | Phase 00 completed: repository inspected (greenfield confirmed), architecture/data-model/ADR/status docs created; config & business gaps catalogued; Phase 01 defined | Architect agent |
+| 2026-10-28 | Phase 01 completed: Next 16.4.3 scaffold merged into repo root (preserving `main` + docs), next-intl en/ar wired with RTL dir/lang, Prisma 7 bootstrap validated (no DB migrations — CFG-01 pending), env schema + .env.example, health route, CI workflow, scripts; build/lint/typecheck green; runtime smoke of /en, /ar, /api/health, locale negotiation verified | Architect agent |
