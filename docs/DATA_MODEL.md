@@ -205,11 +205,21 @@ Unique index `(productId, optionValuesJson hash)` prevents duplicate variants.
 
 ## 12. Migration Sequence (Phase 03 breakdown)
 
+**Status update (M1 complete):** the approved Phase 03 plan consolidated catalogue + pricing + inventory structures into a single offline-authored migration; `0002_catalog_core` now contains Category, Product, ProductVariant, Attribute/AttributeOption, ProductAttribute, **VariantAttributeOption**, ProductImage/MediaAsset, PriceList/**PriceListItem**, TaxCode, Warehouse, StockLevel, StockMovement (15 tables + MetaVersion bootstrap). Naming deltas vs. this document's original sketch: `PricePoint` -> `PriceListItem`, `AttributeValue` -> `AttributeOption`, `TaxRate` -> `TaxCode`. Remaining migrations unchanged in intent:
+
 1. `0001_identity` (User, Role, Address, Setting, AuditLog)
-2. `0002_catalog` (Category, Product, Attribute, Variant, Media)
-3. `0003_pricing_inventory` (Market, Currency, PriceList, PricePoint, TaxRate, Warehouse, StockLevel, StockMovement, Reservation, Promo)
+2. `0002_catalog_core` ✅ authored offline (SQL reviewed; NOT applied — requires CFG-01)
+3. `0003_pricing_extras` (Market, Currency rates, Reservation, Promotion)
 4. `0004_commerce` (Cart, Order, OrderItem, OrderEvent, Shipment, Payment, PaymentEvent, Invoice)
 5. `0005_quotation_service` (RfqRequest, Quote, QuoteLine, Asset, ServiceTicket, TicketNote…)
 6. `0006_crm_cms_notify` (Lead, Activity, Note, Page, Block, Banner, OutboxMessage, EmailTemplate, TranslationTask)
 
 Each migration ships with a smoke test inserting/reading representative rows in both locales.
+
+## 13. Search & Integrity Extras (authored in 0002 SQL, not expressible in Prisma schema)
+
+1. **English full-text search:** `products.search_vector` is a STORED generated column combining weighted `to_tsvector('simple', …)` over `name_en` (A), `short_desc_en` (B), `description_en` (C), with GIN index `ix_product_search`. **Limitations (documented, refinement #7):** `simple` config has no stemming/stopwords; Arabic text is intentionally excluded from the vector because Postgres `simple` config does not normalize Arabic well without an extension (e.g. `pg_trgm`/custom dictionary). **Arabic fallback:** storefront service performs case-insensitive `ILIKE` against `name_ar`/`short_desc_ar`/`description_ar`. Re-evaluate a dedicated Arabic configuration when real catalogue content lands (BIZ-04).
+2. **Inventory CHECK constraints:** `chk_stock_onhand_nonneg` (quantity_on_hand >= 0) and `chk_stock_reserved_le` (reserved_qty <= quantity_on_hand) on `stock_levels`.
+3. **Append-only ledger enforcement (refinement #5):** BEFORE UPDATE OR DELETE trigger `trg_stock_movements_no_update` raises an exception; corrections are compensating INSERTs. Transactional consistency rule: every movement row is inserted in the same `$transaction` that updates its `StockLevel`; a periodic reconciliation job (admin phase) compares `SUM(delta)` vs `quantity_on_hand` and flags drift.
+4. **Standard-variant invariant (refinement #1):** enforced by the M2 service layer (createProduct inserts product+standard variant atomically; deletion of the last variant is rejected). A DB-level self-referential CHECK was evaluated and rejected as unreliable for cross-row invariants.
+5. **Prisma schema note:** `search_vector` is declared `Unsupported("tsvector")` in schema.prisma; the generated-column definition lives only in migration SQL, so future `migrate diff` runs must be inspected for accidental drops of these custom objects.

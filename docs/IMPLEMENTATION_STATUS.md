@@ -96,7 +96,18 @@ Legend: ✅ complete · ⏳ queued/current · ⬜ not started · 🚧 blocked
 
 **Git hygiene verified this turn (actual results):** tracked generated files = 0 (`git ls-files | grep -cE '^(node_modules/|\.next/|src/generated/)'` → 0); comprehensive `.gitignore` restored (commit `1f1113b3`); original `main` file intact (md5 `68b329da…`). No history rewritten.
 
-**Phase 03 plan:** see `docs/PHASE03_PLAN.md` (milestones M0–M6, CFG-01 split, acceptance criteria). Implementation begins only after owner approval of that plan.
+**Phase 03 plan:** see `docs/PHASE03_PLAN.md`. Owner approved with adjustment: **M0 deferred; M1 started immediately.** Phase 02 checkpoint items above remain open and untouched by design.
+
+### Phase 03 — M1: Catalogue schema authoring ✅ COMPLETE (this commit)
+
+Actual results:
+- `prisma/schema.prisma`: added 5 enums + 15 models (Category, Product, VariantAttributeOption, ProductVariant, Attribute, AttributeOption, ProductAttribute, MediaAsset, ProductImage, PriceList, PriceListItem, TaxCode, Warehouse, StockLevel, StockMovement) alongside existing MetaVersion. All mandatory refinements #1–#9 implemented as approved (authoritative price = PriceListItem; StockPolicy TRACKING/NOT_TRACKED; EN tsvector column via Unsupported type; paired En/Ar; cuid ids; snake_case @map).
+- Live validation iterations (actual errors fixed): Prisma 7 has no `@@check` → CHECK constraints moved to migration SQL; native type is `@db.Decimal` not `@db.Numeric`; named relation needed matching name on both sides (`CategoryImage`). Final: `prisma validate` → "The schema at prisma/schema.prisma is valid" (exit 0).
+- Offline migration: `prisma migrate diff --from-empty --to-schema … --script` (flag renamed in Prisma 7 from `--to-schema-datamodel`) produced 389-line SQL; appended ~40 lines hand-authored custom objects: weighted STORED generated tsvector column + GIN index, stock CHECK constraints, append-only trigger/function for stock_movements. One initially-drafted self-referential CHECK for the standard-variant invariant was removed during review as unreliable — documented as service-layer enforcement instead. Result: `prisma/migrations/0002_catalog_core/migration.sql` (16 CREATE TABLE, 5 CREATE TYPE, 27 indexes/constraints).
+- **No database connection attempted; migration NOT applied** (CFG-01 still ❌ open). No business data invented; `isSample` columns exist solely to flag future synthetic seeds.
+- Docs updated: DATA_MODEL.md §12 (migration sequence status + naming deltas PricePoint→PriceListItem, AttributeValue→AttributeOption, TaxRate→TaxCode) and new §13 Search & Integrity Extras (EN FTS limitations, Arabic ILIKE fallback, ledger transactional-consistency rule).
+
+Next: **M2 — framework-free catalogue service layer** (CatalogRepository port, search/filter/sort/pagination, in-memory fixture unit tests; no DB required).
 
 ### Phase 01 completion notes (2026-10-28)
 - Scaffolded Next **16.4.3** (initial Next 14 attempt discarded after `npm audit` showed 1 critical + 4 high advisories; latest = 0 vulnerabilities). React 19.3.0, TS strict, Tailwind v4, ESLint 9 flat config.
