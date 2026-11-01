@@ -79,6 +79,33 @@ export default defineConfig({
           "node_modules/next-intl/dist/esm/development/navigation.react-server.js",
         ),
       },
+      // Same rationale: the layout under test is a React SERVER component, so
+      // `next-intl/server` must resolve to the react-server entry. Outside the
+      // Next toolchain, Vite picks the plain-browser entry, whose
+      // `setRequestLocale` throws "not supported in Client Components" even
+      // though production runs the react-server implementation (which merely
+      // writes a per-request locale cache). This pins the SAME code that ships
+      // in production builds; it does not stub or weaken anything.
+      {
+        find: /^next-intl\/server$/,
+        replacement: path.resolve(
+          __dirname,
+          "node_modules/next-intl/dist/esm/development/server.react-server.js",
+        ),
+      },
+      // And the same for the main entry: the layout imports
+      // `NextIntlClientProvider` from "next-intl". Without the RSC condition
+      // Vite loads the CLIENT provider, which requires an explicit `locale`
+      // prop and throws "Couldn't infer the locale prop". Production renders
+      // the SERVER provider (auto-infers locale/messages/timezone from the
+      // request config) — this alias pins that exact file.
+      {
+        find: /^next-intl$/,
+        replacement: path.resolve(
+          __dirname,
+          "node_modules/next-intl/dist/esm/development/index.react-server.js",
+        ),
+      },
     ],
   },
 });
