@@ -10,8 +10,8 @@
 |---|---|---|---|
 | 00 | Discovery & Architecture docs | ✅ **Complete** | This document set (5 files in `docs/`) |
 | 01 | Foundation scaffold (Next.js+TS+Tailwind, ESLint, CI, Prisma init, .env.example) | ✅ **Complete** (2026-10-28) | Build/lint/typecheck green; `/en`+`/ar` prerendered; health probe verified live |
-| 02 | i18n & RTL shell | ⏳ **NEXT — ready to start** | Depends on Phase 01 (done) |
-| 03 | Core data model + migrations + seed | ⬜ Not started | Migration *execution* blocked by CFG-01 (Postgres URL) |
+| 02 | i18n & RTL shell | 🚧 **DEFERRED — NOT COMPLETE** | Implementation committed (`1e6cedc`, `85f77b16`); cleanup done (`1f1113b3`). Outstanding: 45/48 tests pass — 3 failures in `tests/document.test.tsx` (async next-intl layout suspension); lint/typecheck/build re-run pending; production runtime verification on :3111 pending; ADR-016 pending. Deferred to maintenance checkpoint per owner instruction. |
+| 03 | Core data model + migrations + seed | 📋 **PLANNED — awaiting approval** | Plan: `docs/PHASE03_PLAN.md`. Schema authoring possible without DB; migration *execution* blocked by CFG-01 (Postgres URL). Do not start until Phase 02 plan review + owner approval of this plan. |
 | 04 | Auth & users | ⬜ Not started | Needs CFG-01; email verification needs CFG-04 |
 | 05 | Catalog storefront | ⬜ Not started | Real content needs BIZ-01/BIZ-02 (sample seeds only meanwhile) |
 | 06 | Cart & checkout | ⬜ Not started | Shipping policy inputs needed (BIZ-06) |
@@ -85,16 +85,18 @@ Legend: ✅ complete · ⏳ queued/current · ⬜ not started · 🚧 blocked
 2. **No payment credentials (CFG-02/03).** Workaround: COD + bank-transfer adapters make checkout demonstrable end-to-end without any gateway.
 3. **Unknown catalogue/prices (BIZ-02).** Workaround: seed marked `isSample=true`; production seed import task scheduled when data arrives.
 
-## 6. Next Implementation Step — Phase 02: i18n & RTL shell
+## 6. Next Implementation Step — Phase 03: Product Catalogue & Database Foundation (PLAN ONLY — awaiting approval)
 
-Phase 01 acceptance met (see Change Log). **Execute next:**
-1. Arabic-capable font stack (`next/font` — e.g. IBM Plex Sans Arabic or Cairo + Latin pairing) wired into `[locale]/layout.tsx`.
-2. Tailwind logical-property conventions enforced: ESLint no-restricted-syntax rule banning physical `ml-/mr-/pl-/pr-/left-/right-/text-left/text-right` utilities in class strings.
-3. Bidi isolation utility component for model codes/SKUs/prices inside Arabic text (`<bdi>` wrapper + `Intl.NumberFormat` per locale region).
-4. Shared shell components: header/footer slots, skip-link, `hreflang` alternates via `generateMetadata` alternates API.
-5. Lighthouse sanity check on `/en` and `/ar`; commit `Phase 02: i18n & RTL shell`.
+**Phase 02 maintenance checkpoint (deferred tasks that MUST be resumed before/at Phase 03 close):**
+- Fix 3 failing tests in `tests/document.test.tsx` (async next-intl layout suspension at `src/app/[locale]/layout.tsx:37`). Target: 48/48.
+- Re-run `npm run lint`, `npm run typecheck`, `npm run build` after fixes.
+- Production runtime verification on port 3111: `/`, `/en`, `/ar`, `/api/health`, fonts, RTL rendering, metadata suppression without CFG-06.
+- Add ADR-016 (Vitest selection, jsdom 26.1.0 pin under Node 20, PostCSS/Tailwind v4 function-form fix).
+- Final commit `Phase 02: complete i18n and RTL shell`. **Phase 02 remains NOT COMPLETE until then.**
 
-**Acceptance criteria for Phase 02:** lint fails on physical-direction utilities; `/ar` renders fully mirrored with correct Arabic typography; hreflang pairs present in HTML head; number/currency formatting differs correctly per locale.
+**Git hygiene verified this turn (actual results):** tracked generated files = 0 (`git ls-files | grep -cE '^(node_modules/|\.next/|src/generated/)'` → 0); comprehensive `.gitignore` restored (commit `1f1113b3`); original `main` file intact (md5 `68b329da…`). No history rewritten.
+
+**Phase 03 plan:** see `docs/PHASE03_PLAN.md` (milestones M0–M6, CFG-01 split, acceptance criteria). Implementation begins only after owner approval of that plan.
 
 ### Phase 01 completion notes (2026-10-28)
 - Scaffolded Next **16.4.3** (initial Next 14 attempt discarded after `npm audit` showed 1 critical + 4 high advisories; latest = 0 vulnerabilities). React 19.3.0, TS strict, Tailwind v4, ESLint 9 flat config.
