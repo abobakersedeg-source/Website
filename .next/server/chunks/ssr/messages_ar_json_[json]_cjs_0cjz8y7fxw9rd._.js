@@ -1,0 +1,3 @@
+module.exports=[47070,(a,b,c)=>{b.exports={Common:{appName:"متجر عربات الغولف",loading:"جارٍ التحميل…",skipToContent:"الانتقال إلى المحتوى الرئيسي"},LocaleSwitcher:{label:"تغيير اللغة",localeEn:"English",localeAr:"العربية"},Home:{title:"متجر عربات الغولف — الأساس جاهز",subtitle:"هيكل المرحلة الأولى قيد التشغيل. ستصل الواجهة والكتالوج وإتمام الشراء في المراحل التالية.",statusLabel:"حالة البناء",statusValue:"المرحلة الأولى: إنشاء الهيكل ✅"}}}];
+
+//# sourceMappingURL=messages_ar_json_%5Bjson%5D_cjs_0cjz8y7fxw9rd._.js.map

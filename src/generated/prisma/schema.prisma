@@ -1,0 +1,25 @@
+// Golf Cart Store — Prisma schema
+// Phase 01: bootstrap only. Full domain model (products, orders, quotations,
+// service, CRM, CMS) is authored in Phase 03 per docs/DATA_MODEL.md.
+//
+// Generated client lives in src/generated/prisma (gitignored; regenerate
+// with `npm run prisma:generate`).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+// Prisma 7: connection URL lives in prisma.config.ts (migrate) and the
+// PrismaClient driver adapter (runtime) — not in the schema. See docs/DECISIONS.md ADR-003.
+datasource db {
+  provider = "postgresql"
+}
+
+/// Health-check / bootstrap model so `prisma validate` and CI have a valid
+/// schema before the Phase 03 domain migrations land. Replaced in migration 0002.
+model MetaVersion {
+  id        Int      @id @default(1)
+  schemaVer String   @default("0.1.0")
+  updatedAt DateTime @updatedAt
+}
