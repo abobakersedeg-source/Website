@@ -1,3 +1,0 @@
-module.exports=[89894,(a,e,o)=>{e.exports={Common:{appName:"Golf Cart Store",loading:"Loading…",skipToContent:"Skip to main content"},LocaleSwitcher:{label:"Change language",localeEn:"English",localeAr:"العربية"},Home:{title:"Golf Cart Store — Foundation Ready",subtitle:"Phase 01 scaffold is running. Storefront, catalogue, and checkout arrive in later phases.",statusLabel:"Build status",statusValue:"Phase 01: foundation scaffold ✅"}}}];
-
-//# sourceMappingURL=messages_en_json_%5Bjson%5D_cjs_0dd4n4urzyjhl._.js.map
