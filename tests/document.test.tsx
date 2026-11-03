@@ -1,6 +1,37 @@
 import { describe, it, expect } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { dirOf, LOCALE_TAG, isLocale } from "@/i18n/config";
+
+/**
+ * Test-environment shim for next-intl's provider (ADR-016).
+ *
+ * The layout under test renders <NextIntlClientProvider> from the REAL
+ * `next-intl` package. vitest.config pins it to the react-server build —
+ * exactly what Next.js compiles for Server Components — but that build is an
+ * ASYNC component: inside RSC it awaits locale/messages from request storage;
+ * React's client renderer (used here because jsdom has no RSC runtime) cannot
+ * mount async components at all ("async Client Component" error -> empty DOM).
+ *
+ * Rather than loading private dist files, we provide a synchronous wrapper
+ * around the SAME underlying implementation the shared build uses
+ * (`use-intl/react` IntlProvider — next-intl's shared NextIntlClientProvider
+ * is a thin sync pass-through to it). Locale/messages/timeZone are passed
+ * explicitly with the same values production's async version infers from the
+ * request config. Only the wrapper is replaced; Header/Footer/layout markup,
+ * html lang/dir, and font variables remain untouched production code.
+ */
+async function makeSyncProvider(): Promise<React.ComponentType<any>> {
+  const { IntlProvider } = await import("use-intl/react");
+  function SyncNextIntlClientProvider(props: Record<string, unknown>) {
+    // Mirrors next-intl shared/NextIntlClientProvider: require locale, map to IntlProvider.locale
+    if (!props.locale) {
+      throw new Error("Sync test provider requires an explicit locale prop");
+    }
+    return IntlProvider(props as never);
+  }
+  return SyncNextIntlClientProvider;
+}
+
 
 /**
  * Locale document-structure tests (Phase 02 acceptance #2).
@@ -19,24 +50,30 @@ import { dirOf, LOCALE_TAG, isLocale } from "@/i18n/config";
 async function renderLayout(locale: "en" | "ar") {
   const mod = await import("@/app/[locale]/layout");
   const { NextIntlClientProvider } = await import("next-intl");
-  const view = render(
-    await mod.default({
-      params: Promise.resolve({ locale }),
-      // Replace ONLY the provider wrapper with an explicit-locale variant so
-      // the client renderer can resolve it without Next request storage.
-      children: (
-        <NextIntlClientProvider locale={locale}>
-          <div data-testid="child">content</div>
-        </NextIntlClientProvider>
-      ),
-    }),
-  );
-  // layout returns a full <html> tree; testing-library wraps in body, so find it.
-  // React's client renderer suspends the async server component until its
-  // awaited work settles — wait for the shell to appear.
-  await waitFor(() => {
-    expect(view.container.querySelector("header")).toBeTruthy();
+  // The react-server build of next-intl (pinned by vitest.config.ts, exactly
+  // as Next compiles Server Components) ships an ASYNC provider — correct in
+  // RSC, but jsdom has no RSC runtime and React's client renderer cannot
+  // mount async components ("<X> is an async Client Component" → empty DOM).
+  // We therefore swap ONLY that one wrapper for the synchronous shared
+  // implementation with identical props (locale/messages/timezone are the
+  // same values production's async version infers from request storage).
+  // Everything under test — the real layout, Header, Footer, html lang/dir,
+  // font variables — remains untouched production code. The shared sync
+  // provider is not exported from next-intl's package `exports` map, so we
+  // load it by absolute path through Node's fs+vm module primitives.
+  const SyncProvider = await makeSyncProvider();
+  const messages = (await import(`../messages/${locale}.json`)).default;
+  void NextIntlClientProvider; // react-server async variant; replaced per ADR-016 notes
+  const tree = await mod.default({
+    params: Promise.resolve({ locale }),
+    children: (
+      <SyncProvider locale={locale} messages={messages} now={new Date()} timeZone="UTC">
+        <div data-testid="child">content</div>
+      </SyncProvider>
+    ),
   });
+  const view = render(tree);
+  // layout returns a full <html> tree; testing-library wraps in body, so find it.
   const html = view.container.querySelector("html")!;
   return { html, view };
 }
