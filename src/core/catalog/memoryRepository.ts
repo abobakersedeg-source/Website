@@ -146,26 +146,28 @@ export class MemoryCatalogRepository implements CatalogRepository {
   private sortRows(rows: ProductRecord[], query: ProductListQuery): ProductRecord[] {
     // Deterministic tie-break (product id) applied on EVERY key so equal
     // values never produce unstable orderings across pages.
-    const byId = (a: ProductRecord, b: ProductRecord) => a.id.localeCompare(b.id);
+    // Tie-break is collation-independent and applied AFTER multiplying the
+    // primary comparison by direction, so descending sorts remain exact
+    // reversals of ascending ones (matches Postgres ORDER BY semantics).
+    const byId = (a: ProductRecord, b: ProductRecord) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     const dirMul = query.sortDir === "asc" ? 1 : -1;
     const cmp = (a: ProductRecord, b: ProductRecord): number => {
       switch (query.sort.key) {
         case "name": {
-          const d = a.nameEn.localeCompare(b.nameEn, "en");
-          return d !== 0 ? dirMul * d : byId(a, b);
+          const d = a.nameEn.localeCompare(b.nameEn, "en") || byId(a, b);
+          return dirMul * d;
         }
         case "modelCode": {
-          const d = a.modelCode.localeCompare(b.modelCode, "en");
-          return d !== 0 ? dirMul * d : byId(a, b);
+          const d = a.modelCode.localeCompare(b.modelCode, "en") || byId(a, b);
+          return dirMul * d;
         }
         case "newest": {
-          const d = a.createdAt.getTime() - b.createdAt.getTime();
-          return d !== 0 ? dirMul * d : byId(a, b);
+          const d = a.createdAt.getTime() - b.createdAt.getTime() || byId(a, b);
+          return dirMul * d;
         }
         case "featured": {
-          const fa = (a.isFeatured ? 1 : 0) - (b.isFeatured ? 1 : 0);
-          if (fa !== 0) return dirMul * fa;
-          return byId(a, b);
+          const fa = (a.isFeatured ? 1 : 0) - (b.isFeatured ? 1 : 0) || byId(a, b);
+          return dirMul * fa;
         }
         case "price": {
           const pa = this.minEffectivePrice(a);
@@ -174,8 +176,7 @@ export class MemoryCatalogRepository implements CatalogRepository {
           if (pa === null && pb === null) return byId(a, b);
           if (pa === null) return 1;
           if (pb === null) return -1;
-          const d = dirMul * (pa - pb);
-          return d !== 0 ? d : byId(a, b);
+          return dirMul * (pa - pb || byId(a, b));
         }
       }
     };
