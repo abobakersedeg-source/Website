@@ -65,10 +65,11 @@ export type PriceResolution =
       candidateIds: string[];
     };
 
-const DAY_MS = 0; // validity uses half-open [from, to) with timestamptz precision
+// (validity helper below)
 
 function isValidAt(row: { validFrom: Date; validTo: Date | null }, at: Date): boolean {
-  return row.validFrom.getTime() - DAY_MS <= at.getTime() && (row.validTo === null || at.getTime() < row.validTo.getTime());
+  // half-open interval [validFrom, validTo)
+  return row.validFrom.getTime() <= at.getTime() && (row.validTo === null || at.getTime() < row.validTo.getTime());
 }
 
 export function resolvePrice(
@@ -85,7 +86,9 @@ export function resolvePrice(
   if (!list) return { status: "MISSING", reason: "NO_ACTIVE_LIST" };
 
   // 2. candidate rows --------------------------------------------------------
-  const inList = ctx.items.filter((i) => i.priceListId === list.id);
+  // Rows must belong to the chosen list AND be effective at `at` (refinement
+  // #9: PriceListItem is authoritative, respecting currency and dates).
+  const inList = ctx.items.filter((i) => i.priceListId === list.id && isValidAt(i, at));
   const currencyRows = inList.filter((i) => i.currency === input.currency);
   if (inList.length > 0 && currencyRows.length === 0) {
     return { status: "MISSING", reason: "CURRENCY_MISMATCH" };

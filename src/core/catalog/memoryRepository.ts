@@ -143,31 +143,39 @@ export class MemoryCatalogRepository implements CatalogRepository {
     return { items, total };
   }
 
-  /** Repository-local helper mirroring service sort keys deterministically. */
   private sortRows(rows: ProductRecord[], query: ProductListQuery): ProductRecord[] {
+    // Deterministic tie-break (product id) applied on EVERY key so equal
+    // values never produce unstable orderings across pages.
+    const byId = (a: ProductRecord, b: ProductRecord) => a.id.localeCompare(b.id);
     const dirMul = query.sortDir === "asc" ? 1 : -1;
     const cmp = (a: ProductRecord, b: ProductRecord): number => {
       switch (query.sort.key) {
-        case "name":
-          return dirMul * a.nameEn.localeCompare(b.nameEn, "en");
-        case "modelCode":
-          return dirMul * a.modelCode.localeCompare(b.modelCode, "en");
-        case "newest":
-          return dirMul * (a.createdAt.getTime() - b.createdAt.getTime());
+        case "name": {
+          const d = a.nameEn.localeCompare(b.nameEn, "en");
+          return d !== 0 ? dirMul * d : byId(a, b);
+        }
+        case "modelCode": {
+          const d = a.modelCode.localeCompare(b.modelCode, "en");
+          return d !== 0 ? dirMul * d : byId(a, b);
+        }
+        case "newest": {
+          const d = a.createdAt.getTime() - b.createdAt.getTime();
+          return d !== 0 ? dirMul * d : byId(a, b);
+        }
         case "featured": {
           const fa = (a.isFeatured ? 1 : 0) - (b.isFeatured ? 1 : 0);
           if (fa !== 0) return dirMul * fa;
-          return a.id.localeCompare(b.id); // deterministic tie-break
+          return byId(a, b);
         }
         case "price": {
           const pa = this.minEffectivePrice(a);
           const pb = this.minEffectivePrice(b);
           // unpriced products sort last regardless of direction
-          if (pa === null && pb === null) return a.id.localeCompare(b.id);
+          if (pa === null && pb === null) return byId(a, b);
           if (pa === null) return 1;
           if (pb === null) return -1;
           const d = dirMul * (pa - pb);
-          return d !== 0 ? d : a.id.localeCompare(b.id);
+          return d !== 0 ? d : byId(a, b);
         }
       }
     };
