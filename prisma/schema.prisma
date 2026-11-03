@@ -1,0 +1,385 @@
+// Golf Cart Store — Prisma schema
+// Phase 01: bootstrap only. Full domain model (products, orders, quotations,
+// service, CRM, CMS) is authored in Phase 03 per docs/DATA_MODEL.md.
+//
+// Generated client lives in src/generated/prisma (gitignored; regenerate
+// with `npm run prisma:generate`).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+// Prisma 7: connection URL lives in prisma.config.ts (migrate) and the
+// PrismaClient driver adapter (runtime) — not in the schema. See docs/DECISIONS.md ADR-003.
+datasource db {
+  provider = "postgresql"
+}
+
+/// Health-check / bootstrap model so `prisma validate` and CI have a valid
+/// schema before the Phase 03 domain migrations land. Kept for deploy tracking.
+model MetaVersion {
+  id        Int      @id @default(1)
+  schemaVer String   @default("0.1.0")
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================================
+// Phase 03 M1 — Catalogue core (approved plan: docs/PHASE03_PLAN.md, M1 §3)
+// Conventions: cuid ids, snake_case @map, paired En/Ar columns (ADR-004),
+// money as Int minor units + ISO-4217 currency, soft delete via isActive/status.
+// Authoritative selling price = PriceListItem (refinement #4): Product.basePriceMinor
+// is only a fallback seed used by admin tooling when no list row applies.
+// Full-text search: English tsvector generated columns only (refinement #7);
+// Arabic falls back to ILIKE (documented limitation).
+// ============================================================================
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+
+  @@map("product_status")
+}
+
+enum StockPolicy {
+  TRACKING
+  NOT_TRACKED
+
+  @@map("stock_policy")
+}
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  SELECT
+  BOOLEAN
+
+  @@map("attribute_type")
+}
+
+enum MediaKind {
+  IMAGE
+  DOCUMENT
+
+  @@map("media_kind")
+}
+
+enum MovementReason {
+  RECEIPT
+  SALE_RESERVATION
+  SALE_CONSUMPTION
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  RETURN_RESTOCK
+
+  @@map("movement_reason")
+}
+
+/// Adjacency-tree taxonomy; depth capped at 2 (category -> subcategory),
+/// enforced in the service layer (M2), not by the database.
+model Category {
+  id             String    @id @default(cuid()) @map("id")
+  slug           String    @unique(map: "uq_category_slug") @map("slug") @db.VarChar(120)
+  parentId       String?   @map("parent_id")
+  parent         Category? @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children       Category[] @relation("CategoryTree")
+  nameEn         String    @map("name_en") @db.VarChar(160)
+  nameAr         String    @map("name_ar") @db.VarChar(160)
+  descriptionEn  String?   @map("description_en") @db.Text
+  descriptionAr  String?   @map("description_ar") @db.Text
+  imageAssetId   String?   @map("image_asset_id")
+  imageAsset     MediaAsset? @relation("CategoryImage", fields: [imageAssetId], references: [id], onDelete: SetNull)
+  sortOrder      Int       @default(0) @map("sort_order")
+  isActive       Boolean   @default(true) @map("is_active")
+  /// Flag for unmistakably synthetic seed records while business facts pending (R3).
+  isSample       Boolean   @default(false) @map("is_sample")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  products       Product[]
+
+  @@index([parentId], map: "ix_category_parent")
+  @@index([isActive, sortOrder], map: "ix_category_active_sort")
+  @@map("categories")
+}
+
+/// Sellable catalogue item. Every product MUST have >=1 variant (enforced by
+/// service layer + DB trigger authored in migration SQL, refinement #1).
+model Product {
+  id               String        @id @default(cuid()) @map("id")
+  modelCode        String        @unique(map: "uq_product_model_code") @map("model_code") @db.VarChar(64)
+  slug             String        @unique(map: "uq_product_slug") @map("slug") @db.VarChar(160)
+  categoryId       String        @map("category_id")
+  category         Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  nameEn           String        @map("name_en") @db.VarChar(200)
+  nameAr           String        @map("name_ar") @db.VarChar(200)
+  shortDescEn      String?       @map("short_desc_en") @db.VarChar(500)
+  shortDescAr      String?       @map("short_desc_ar") @db.VarChar(500)
+  descriptionEn    String?       @map("description_en") @db.Text
+  descriptionAr    String?       @map("description_ar") @db.Text
+  /// Fallback only; authoritative price resolution is PriceListItem (refinement #4).
+  basePriceMinor   Int?          @map("base_price_minor")
+  currency         String        @default("AED") @map("currency") @db.Char(3)
+  taxCodeId        String?       @map("tax_code_id")
+  taxCode          TaxCode?      @relation(fields: [taxCodeId], references: [id], onDelete: SetNull)
+  status           ProductStatus @default(DRAFT) @map("status")
+  isFeatured       Boolean       @default(false) @map("is_featured")
+  isSample         Boolean       @default(false) @map("is_sample")
+  metaTitleEn      String?       @map("meta_title_en") @db.VarChar(200)
+  metaTitleAr      String?       @map("meta_title_ar") @db.VarChar(200)
+  metaDescriptionEn String?      @map("meta_description_en") @db.VarChar(300)
+  metaDescriptionAr String?      @map("meta_description_ar") @db.VarChar(300)
+  /// English full-text search column (simple config). Arabic intentionally excluded;
+  /// storefront Arabic queries fall back to ILIKE (documented limitation, refinement #7).
+  searchVector     Unsupported("tsvector")? @map("search_vector")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  variants         ProductVariant[]
+  attributes       ProductAttribute[]
+  images           ProductImage[]
+
+  @@index([categoryId, status], map: "ix_product_category_status")
+  @@index([status, isFeatured], map: "ix_product_featured")
+  @@index([slug], map: "ix_product_slug")
+  @@map("products")
+}
+
+/// Variant-level EAV selection (refinement #2): which AttributeOption a variant
+/// picks for a given SELECT attribute (e.g. colour, battery).
+model VariantAttributeOption {
+  id            String          @id @default(cuid()) @map("id")
+  variantId     String          @map("variant_id")
+  variant       ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  attributeId   String          @map("attribute_id")
+  attribute     Attribute       @relation(fields: [attributeId], references: [id], onDelete: Restrict)
+  optionId      String          @map("option_id")
+  option        AttributeOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@unique([variantId, attributeId], map: "uq_variant_attr")
+  @@index([attributeId, optionId], map: "ix_variant_attr_option")
+  @@map("variant_attribute_options")
+}
+
+/// The sellable SKU. One "standard" variant auto-created per product (refinement #1).
+model ProductVariant {
+  id              String      @id @default(cuid()) @map("id")
+  productId       String      @map("product_id")
+  product         Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku             String      @unique(map: "uq_variant_sku") @map("sku") @db.VarChar(64)
+  isStandard      Boolean     @default(false) @map("is_standard")
+  nameEn          String?     @map("name_en") @db.VarChar(200)
+  nameAr          String?     @map("name_ar") @db.VarChar(200)
+  stockPolicy     StockPolicy @default(TRACKING) @map("stock_policy")
+  weightKg        Decimal?    @map("weight_kg") @db.Decimal(8, 3)
+  dimsCm          Json?       @map("dims_cm")
+  isActive        Boolean     @default(true) @map("is_active")
+  isSample        Boolean     @default(false) @map("is_sample")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  attributeSelections VariantAttributeOption[]
+  priceItems          PriceListItem[]
+  stockLevels         StockLevel[]
+  stockMovements      StockMovement[]
+
+  @@index([productId], map: "ix_variant_product")
+  @@map("product_variants")
+}
+
+/// Spec definitions (EAV, refinement #2). Product-level values live on
+/// ProductAttribute; variant-level selections live on VariantAttributeOption.
+model Attribute {
+  id        String        @id @default(cuid()) @map("id")
+  code      String        @unique(map: "uq_attribute_code") @map("code") @db.VarChar(64)
+  labelEn   String        @map("label_en") @db.VarChar(160)
+  labelAr   String        @map("label_ar") @db.VarChar(160)
+  type      AttributeType @map("type")
+  unit      String?       @map("unit") @db.VarChar(32)
+  sortOrder Int           @default(0) @map("sort_order")
+  isActive  Boolean       @default(true) @map("is_active")
+
+  options          AttributeOption[]
+  productValues    ProductAttribute[]
+  variantSelection VariantAttributeOption[]
+
+  @@map("attributes")
+}
+
+model AttributeOption {
+  id          String    @id @default(cuid()) @map("id")
+  attributeId String    @map("attribute_id")
+  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  valueEn     String    @map("value_en") @db.VarChar(160)
+  valueAr     String    @map("value_ar") @db.VarChar(160)
+  sortOrder   Int       @default(0) @map("sort_order")
+
+  variantSelections VariantAttributeOption[]
+
+  @@unique([attributeId, valueEn], map: "uq_attr_option_value")
+  @@map("attribute_options")
+}
+
+/// Product-level specification values (TEXT/NUMBER/BOOLEAN inline; SELECT uses optionId).
+model ProductAttribute {
+  id          String     @id @default(cuid()) @map("id")
+  productId   String     @map("product_id")
+  product     Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributeId String     @map("attribute_id")
+  attribute   Attribute  @relation(fields: [attributeId], references: [id], onDelete: Restrict)
+  optionId    String?    @map("option_id")
+  textValue   String?    @map("text_value") @db.VarChar(500)
+  numValue    Decimal?   @map("num_value") @db.Decimal(14, 4)
+  boolValue   Boolean?   @map("bool_value")
+
+  @@unique([productId, attributeId], map: "uq_product_attr")
+  @@index([attributeId], map: "ix_product_attr_attribute")
+  @@map("product_attributes")
+}
+
+/// Central media record; storage-provider agnostic (object key resolved by adapter).
+model MediaAsset {
+  id        String    @id @default(cuid()) @map("id")
+  key       String    @unique(map: "uq_media_key") @map("object_key") @db.VarChar(512)
+  kind      MediaKind @default(IMAGE) @map("kind")
+  altEn     String?   @map("alt_en") @db.VarChar(300)
+  altAr     String?   @map("alt_ar") @db.VarChar(300)
+  widthPx   Int?      @map("width_px")
+  heightPx  Int?      @map("height_px")
+  bytes     Int?      @map("bytes")
+  mime      String?   @map("mime") @db.VarChar(120)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  categoryImages Category[]   @relation("CategoryImage")
+  productImages  ProductImage[]
+
+  @@map("media_assets")
+}
+
+/// Product <-> MediaAsset relationship with ordering (refinement #3).
+model ProductImage {
+  id       String     @id @default(cuid()) @map("id")
+  productId String    @map("product_id")
+  product  Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  assetId  String     @map("asset_id")
+  asset    MediaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  sortOrder Int      @default(0) @map("sort_order")
+  isPrimary Boolean  @default(false) @map("is_primary")
+
+  @@unique([productId, assetId], map: "uq_product_image")
+  @@index([productId, sortOrder], map: "ix_product_image_order")
+  @@map("product_images")
+}
+
+/// Price lists: RETAIL default; dealer/project lists added by admin later.
+/// Effective-dated windows; overlapping rows for same list+variant are rejected
+/// by service-layer validation (M2).
+model PriceList {
+  id          String   @id @default(cuid()) @map("id")
+  code        String   @unique(map: "uq_pricelist_code") @map("code") @db.VarChar(40)
+  nameEn      String   @map("name_en") @db.VarChar(160)
+  nameAr      String   @map("name_ar") @db.VarChar(160)
+  currency    String   @default("AED") @map("currency") @db.Char(3)
+  isDefault   Boolean  @default(false) @map("is_default")
+  isActive    Boolean  @default(true) @map("is_active")
+  validFrom   DateTime @map("valid_from") @db.Timestamptz(6)
+  validTo     DateTime? @map("valid_to") @db.Timestamptz(6)
+
+  items PriceListItem[]
+
+  @@map("price_lists")
+}
+
+/// AUTHORITATIVE selling price (refinement #4). Resolution order documented in
+/// DATA_MODEL.md: active list valid at query time -> variant-specific row -> else
+/// product-level row -> else Product.basePriceMinor fallback (logged as degraded).
+model PriceListItem {
+  id           String         @id @default(cuid()) @map("id")
+  priceListId  String         @map("price_list_id")
+  priceList    PriceList      @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  productId    String?        @map("product_id")
+  variantId    String?        @map("variant_id")
+  variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  priceMinor   Int            @map("price_minor")
+  compareAtMinor Int?         @map("compare_at_minor")
+  currency     String         @map("currency") @db.Char(3)
+  validFrom    DateTime       @map("valid_from") @db.Timestamptz(6)
+  validTo      DateTime?      @map("valid_to") @db.Timestamptz(6)
+
+  @@unique([priceListId, variantId], map: "uq_price_item_variant")
+  @@index([priceListId, productId], map: "ix_price_item_product")
+  @@map("price_list_items")
+}
+
+/// Tax placeholder structure ONLY. Rates/jurisdictions are BIZ-pending; seeded
+/// rows must carry isSample=true. Never invent real VAT numbers.
+model TaxCode {
+  id         String    @id @default(cuid()) @map("id")
+  code       String    @unique(map: "uq_taxcode_code") @map("code") @db.VarChar(20)
+  rateBps    Int       @map("rate_bps") // basis points, e.g. 1500 = 15.00%
+  jurisdiction String  @map("jurisdiction") @db.VarChar(80)
+  isSample   Boolean   @default(false) @map("is_sample")
+  activeFrom DateTime  @map("active_from") @db.Timestamptz(6)
+  activeTo   DateTime? @map("active_to") @db.Timestamptz(6)
+
+  products Product[]
+
+  @@map("tax_codes")
+}
+
+model Warehouse {
+  id        String   @id @default(cuid()) @map("id")
+  code      String   @unique(map: "uq_warehouse_code") @map("code") @db.VarChar(32)
+  nameEn    String   @map("name_en") @db.VarChar(160)
+  nameAr    String   @map("name_ar") @db.VarChar(160)
+  isActive  Boolean  @default(true) @map("is_active")
+  isSample  Boolean  @default(false) @map("is_sample")
+
+  stockLevels    StockLevel[]
+  stockMovements StockMovement[]
+
+  @@map("warehouses")
+}
+
+/// Current position per variant+warehouse. available = onHand - reserved,
+/// computed in the service layer; never persisted redundantly.
+model StockLevel {
+  id             String         @id @default(cuid()) @map("id")
+  variantId      String         @map("variant_id")
+  variant        ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  warehouseId    String         @map("warehouse_id")
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  quantityOnHand Int            @default(0) @map("quantity_on_hand")
+  reservedQty    Int            @default(0) @map("reserved_qty")
+
+  @@unique([variantId, warehouseId], map: "uq_stock_level")
+  // CHECK constraints (quantity_on_hand >= 0; reserved_qty <= quantity_on_hand)
+  // are authored in migration SQL — Prisma schema language does not support @@check.
+  @@map("stock_levels")
+}
+
+/// APPEND-ONLY ledger (refinement #5). Rows are INSERT-only; UPDATE/DELETE are
+/// blocked by DB triggers authored in the migration SQL. Transactional
+/// consistency: every StockMovement is written in the SAME Prisma $transaction
+/// that updates its StockLevel row; a periodic reconciliation job compares
+/// SUM(delta) vs quantity_on_hand and raises drift alerts (admin phase).
+model StockMovement {
+  id          String           @id @default(cuid()) @map("id")
+  variantId   String           @map("variant_id")
+  variant     ProductVariant   @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  warehouseId String           @map("warehouse_id")
+  warehouse   Warehouse        @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  delta       Int              @map("delta")
+  reason      MovementReason   @map("reason")
+  refType     String?          @map("ref_type") @db.VarChar(40)
+  refId       String?          @map("ref_id") @db.VarChar(64)
+  actorId     String?          @map("actor_id") @db.VarChar(64)
+  note        String?          @map("note") @db.VarChar(500)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([variantId, createdAt], map: "ix_movement_variant_time")
+  @@index([warehouseId, createdAt], map: "ix_movement_warehouse_time")
+  @@map("stock_movements")
+}
